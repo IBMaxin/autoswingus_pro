@@ -106,6 +106,23 @@ def seed_ccxt(
     rc = subprocess.call(cmd)
     raise typer.Exit(code=rc)
 
+@app.command("ui")
+def ui(
+    port: int = typer.Option(8501, "--port", help="Streamlit port"),
+    open_browser: bool = typer.Option(False, "--open-browser/--no-open-browser", help="Launch browser automatically."),
+):
+    """Launch the AutoSwingUS-Pro Streamlit UI."""
+    script = ROOT / "autoswing" / "ui" / "app.py"
+    cmd = [
+        sys.executable, "-m", "streamlit", "run", str(script),
+        "--server.port", str(port),
+        "--server.headless", "true",
+    ]
+    if not open_browser:
+        # suppress usage stats to avoid outbound web calls
+        cmd += ["--browser.gatherUsageStats", "false"]
+    print(f"[cyan]Launching UI: {' '.join(cmd)}[/cyan]")
+    subprocess.call(cmd)
 
 def run():
     app()

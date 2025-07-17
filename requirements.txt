@@ -34,3 +34,5 @@ pytz==2024.1
 pendulum==3.0.0
 yfinance==0.2.40
 ccxt==4.3.88
+streamlit==1.38.0
+altair==5.3.0        # plotting
