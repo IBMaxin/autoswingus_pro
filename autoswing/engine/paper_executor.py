@@ -1,4 +1,17 @@
+"""Paper execution + cash ledger support for AutoSwingUS‑Pro.
+
+Phase 3A refactor: A single class, :class:`PaperAccount`, handles portfolio
+positions, cash ledger (T+1 default), and simplified bar‑close fills used by
+our daily backtester.  Historically we had a separate *PaperExecutor*; for
+backward compatibility we now alias::
+
+    PaperExecutor = PaperAccount
+
+The module also exposes `run_bar_backtest()` which the CLI and UI call to run a
+lightweight, cash‑account‑aware daily backtest across a bundle of symbols.
+"""
 from __future__ import annotations
+
 from datetime import date
 from typing import Dict, List, Optional
 import math
@@ -9,31 +22,33 @@ from autoswing.engine.ledger import CashLedger
 from autoswing.engine.trade import Position, Trade
 from autoswing.io.trade_log import append_trades
 
+
 class PaperAccount:
-    """In-memory account used for backtest / paper-run."""
+    """In‑memory account used for backtest / paper‑run.
+
+    Tracks a :class:`CashLedger` for settlement, open positions, and a running
+    cash value (includes unsettled debits). Provides *buy*/*sell* helpers that
+    mutate state and emit :class:`Trade` records.
+    """
     def __init__(self, starting_cash: float, settlement_days: int = 1):
         self.ledger = CashLedger(starting_cash, settlement_days)
         self.positions: Dict[str, Position] = {}
         self._next_trade_id = 1
-        self.cash_running = starting_cash  # includes unsettled debits
+        self.cash_running = float(starting_cash)  # includes unsettled debits
 
+    # --- util -------------------------------------------------------------
     def _trade_id(self) -> int:
         i = self._next_trade_id
         self._next_trade_id += 1
         return i
 
-    def settled_cash(self, dt: date) -> float:
+    def settled_cash(self, dt: Optional[date] = None) -> float:
+        """Cash settled as of *dt* (default today)."""
+        if dt is None:
+            dt = date.today()
         return self.ledger.settled_cash(dt)
 
-    def equity(self, mark_prices: Dict[str, float], dt: date) -> float:
-        eq = self.settled_cash(dt)
-        # include unsettled debits/credits? we ignore for simplicity
-        for pos in self.positions.values():
-            px = mark_prices.get(pos.symbol, pos.avg_price)
-            eq += pos.qty * px
-        return eq
-
-    # --- fills -------------------------------------------------------------
+    # --- fills ------------------------------------------------------------
     def buy(self, dt: date, symbol: str, price: float, qty: int, fee: float = 0.0):
         notional = price * qty
         self.cash_running -= (notional + fee)
@@ -49,7 +64,7 @@ class PaperAccount:
             trade_id=self._trade_id(), dt=dt, symbol=symbol, side="buy",
             qty=qty, price=price, notional=notional, fee=fee,
             settle_dt=dt, settled=False, realized_pnl=0.0,
-            cash_after=self.cash_running
+            cash_after=self.cash_running,
         )
         return tr
 
@@ -71,21 +86,27 @@ class PaperAccount:
             trade_id=self._trade_id(), dt=dt, symbol=symbol, side="sell",
             qty=qty, price=price, notional=notional, fee=fee,
             settle_dt=dt, settled=False, realized_pnl=realized,
-            cash_after=self.cash_running
+            cash_after=self.cash_running,
         )
         return tr
 
+
+# ---------------------------------------------------------------------------
+# Sizing helper (percent of settled cash)
 # ---------------------------------------------------------------------------
 
 def percent_cash_size(account: PaperAccount, dt: date, price: float, pct: float, max_positions: int) -> int:
     settled = account.settled_cash(dt)
-    # rough: divide by open slots (max_positions - current positions)
     slots = max(1, max_positions - len(account.positions))
     alloc_cash = settled * pct
-    # further cap by slot allocation
     alloc_cash = min(alloc_cash, settled / slots)
     qty = int(math.floor(alloc_cash / price))
     return max(qty, 0)
+
+
+# ---------------------------------------------------------------------------
+# Daily bar backtest loop
+# ---------------------------------------------------------------------------
 
 def run_bar_backtest(
     bundle: Dict[str, pd.DataFrame],
@@ -96,20 +117,18 @@ def run_bar_backtest(
     fee_per_share: float = 0.0,
     project_root=None,
 ):
+    """Simple daily bar backtest across *bundle*.
+
+    Strategy expected to provide:
+    - ``alloc_pct`` (0‑1) percent of settled cash per entry
+    - ``max_positions`` (int)
+    - ``scan(slice_bundle)`` -> iterable of signal objects with ``.symbol`` and ``.action``
     """
-    Simple daily bar backtest:
-      - iterate each calendar bar across all symbols
-      - strategy.scan() called each bar with slice up to bar
-      - fills at current bar close
-      - exits by max_hold_days if set
-    """
-    # Determine common calendar index (union of all symbol date indexes)
     idx = sorted(set().union(*[pd.to_datetime(df["date"]).dt.date.tolist() for df in bundle.values()]))
     acct = PaperAccount(starting_cash, settlement_days=1)
     trades = []
 
-    # Pre-process (ensure data sorted)
-    data_sorted = {s: df.sort_values("date").reset_index(drop=True) for s,df in bundle.items()}
+    data_sorted = {s: df.sort_values("date").reset_index(drop=True) for s, df in bundle.items()}
 
     for i, dt in enumerate(idx):
         # slice up to current date for each symbol
@@ -120,20 +139,19 @@ def run_bar_backtest(
             if not sdf.empty:
                 slice_bundle[sym] = sdf
 
-        # exit rule: max_hold_days
+        # timed exits
         if max_hold_days is not None:
             for sym, pos in list(acct.positions.items()):
                 held = (dt - pos.entry_dt).days
                 if held >= max_hold_days:
-                    # sell at today's close if exists
                     sdf = slice_bundle.get(sym)
                     if sdf is not None:
                         px = float(sdf["close"].iloc[-1])
-                        tr = acct.sell(dt, sym, px, fee=fee_per_share*pos.qty)
+                        tr = acct.sell(dt, sym, px, fee=fee_per_share * pos.qty)
                         if tr:
                             trades.append(tr.__dict__)
 
-        # generate new signals
+        # generate new buy signals
         sigs = strategy.scan(slice_bundle)
         for sig in sigs:
             if sig.action != "buy":
@@ -145,15 +163,20 @@ def run_bar_backtest(
             qty = percent_cash_size(acct, dt, px, pct=strategy.alloc_pct, max_positions=strategy.max_positions)
             if qty <= 0:
                 continue
-            tr = acct.buy(dt, sig.symbol, px, qty, fee=fee_per_share*qty)
+            tr = acct.buy(dt, sig.symbol, px, qty, fee=fee_per_share * qty)
             trades.append(tr.__dict__)
 
     # mark final equity
-    mark_prices = {s: float(df["close"].iloc[-1]) for s,df in data_sorted.items()}
+    mark_prices = {s: float(df["close"].iloc[-1]) for s, df in data_sorted.items()}
     final_eq = acct.equity(mark_prices, idx[-1]) if idx else starting_cash
 
-    # write trades if project_root
     if project_root is not None and trades:
         append_trades(trades, project_root)
 
     return final_eq, trades, acct
+
+
+# ------------------------------------------------------------------
+# Backward‑compat shim: legacy name used in earlier phases
+# ------------------------------------------------------------------
+PaperExecutor = PaperAccount  # alias (inherits not needed)
