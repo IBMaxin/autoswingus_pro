@@ -1,0 +1,7 @@
+[Unit]
+Description=AutoSwingUS-Pro daily pipeline
+
+[Service]
+Type=oneshot
+WorkingDirectory=%h/autoswingus_pro
+ExecStart=%h/autoswingus_pro/.venv/bin/python -m autoswing.cli pipeline-daily --days 60

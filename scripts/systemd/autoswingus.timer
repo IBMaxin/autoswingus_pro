@@ -1,0 +1,9 @@
+[Unit]
+Description=Run AutoSwingUS-Pro daily pipeline at 19:15 local
+
+[Timer]
+OnCalendar=*-*-* 19:15:00
+Persistent=true
+
+[Install]
+WantedBy=timers.target
