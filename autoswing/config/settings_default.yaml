@@ -1,0 +1,16 @@
+# AutoSwingUS-Pro default settings
+
+timeframe: 1d
+run_schedule: after_close
+universe:
+  - BTCUSDT
+  - ETHUSDT
+  - AAPL
+  - MSFT
+  - SPY
+
+risk_per_trade: 0.02
+max_positions: 5
+enforce_cash_settlement: true
+warn_pdt_trades: true
+default_order_type: limit

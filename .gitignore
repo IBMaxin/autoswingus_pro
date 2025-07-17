@@ -1,0 +1,26 @@
+# Python
+__pycache__/
+*.py[cod]
+*.so
+*.egg-info/
+.build/
+
+# Virtualenv
+.venv/
+
+# Environment / secrets
+.env
+.env.*
+
+# Data cache + logs
+runtime/data_cache/
+runtime/logs/
+runtime/db/
+
+# pytest
+.pytest_cache/
+
+# Editors
+*.swp
+*.swo
+.DS_Store

@@ -1,0 +1,15 @@
+accounts:
+  alpaca_paper:
+    broker: alpaca
+    type: cash
+    key_id: ${ALPACA_PAPER_KEY}
+    secret_key: ${ALPACA_PAPER_SECRET}
+    base_url: ${ALPACA_PAPER_BASE_URL}
+    data_source: alpaca
+    starting_cash: 1000
+
+  papercash_sim:
+    broker: papercash
+    type: cash
+    starting_cash: 1000
+    data_source: csv

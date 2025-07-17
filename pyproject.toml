@@ -1,0 +1,22 @@
+[build-system]
+requires = ["setuptools", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "autoswingus-pro"
+version = "0.0.1"
+description = "Cash-account aware swing trading framework for U.S. equities."
+readme = "README.md"
+requires-python = ">=3.10"
+license = {text = "MIT"}
+authors = [ {name = "Bobby (User)", email = "bobby@example.com"}, {name="ChatGPT Assistant"} ]
+classifiers = [
+  "Programming Language :: Python :: 3",
+  "License :: OSI Approved :: MIT License",
+  "Operating System :: POSIX :: Linux",
+]
+keywords = ["trading","swing","alpaca","cash account","pdt safe"]
+
+[project.urls]
+Homepage = "https://example.com/autoswingus-pro"
+

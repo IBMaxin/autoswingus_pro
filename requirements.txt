@@ -1,0 +1,36 @@
+# AutoSwingUS-Pro Phase 1 minimal requirements (pinned)
+# Core scientific stack
+pandas==2.2.2
+numpy==1.26.4
+
+# Config, validation, env
+PyYAML==6.0.2
+pydantic==2.8.2
+python-dotenv==1.0.1
+
+# HTTP / APIs
+httpx==0.27.0
+requests==2.32.3
+alpaca-py==0.21.0  # broker API client; safe to preinstall
+
+# Persistence / DB
+SQLAlchemy==2.0.31
+
+# Utilities / logging / CLI niceties
+rich==13.7.1
+
+# Plotting (lightweight; Phase 2+)
+matplotlib==3.9.0
+
+# Dev / QA
+pytest==8.3.1
+pre-commit==3.7.1
+ruff==0.5.6
+mypy==1.10.0
+typer==0.12.3
+click==8.1.7
+pyarrow==16.1.0
+pytz==2024.1
+pendulum==3.0.0
+yfinance==0.2.40
+ccxt==4.3.88
