@@ -134,7 +134,7 @@ if __name__ == "__main__":
 
 from autoswing.pipeline.daily import run_pipeline
 from autoswing.backtest.walkforward import walkforward
-from autoswing.analysis.montecarlo import load_trade_returns, mc_paths
+from autoswing.analysis.montecarlo import bootstrap_pnl
 import pandas as pd
 import json
 import subprocess
@@ -165,16 +165,12 @@ def cli_walkforward(
 
 @app.command("montecarlo")
 def cli_montecarlo(
-    source: str = typer.Option("trades", "--source", help="'trades' or path to csv w/return col"),
-    iters: int = typer.Option(10000, "--iters"),
-    start_equity: float = typer.Option(1000.0, "--start"),
+    iters: int = typer.Option(5000, "--iters", help="Bootstrap iterations."),
+    start: float = typer.Option(1000.0, "--start", help="Starting cash for simulation."),
 ):
-    arr = load_trade_returns(source)
-    res = mc_paths(arr, iters=iters, start_equity=start_equity)
-    out = Path(__file__).parents[2] / "runtime/logs" / "montecarlo.json"
-    out.write_text(json.dumps(res, indent=2))
-    print(f"MonteCarlo done. median={res['median']:.2f} ruin_prob={res['ruin_prob']:.3f}")
-    print(f"wrote {out}")
+    """Bootstrap Monte Carlo on recorded trade PnLs (Phase‑2B minimal)."""
+    res = bootstrap_pnl(iters=iters, starting_cash=start)
+    print(res)
 
 @app.command("ui")
 def cli_ui(
