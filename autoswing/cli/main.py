@@ -130,3 +130,60 @@ def run():
 
 if __name__ == "__main__":
     run()
+
+
+from autoswing.pipeline.daily import run_pipeline
+from autoswing.backtest.walkforward import walkforward
+from autoswing.analysis.montecarlo import load_trade_returns, mc_paths
+import pandas as pd
+import json
+import subprocess
+
+@app.command("pipeline-daily")
+def pipeline_daily(
+    days: int = typer.Option(60, "--days", help="Lookback days for signals"),
+    auto_push: bool = typer.Option(False, "--auto-push", help="Git add/push logs"),
+):
+    eq = run_pipeline(days=days, auto_push=auto_push)
+    print(f"Final equity: {eq:.2f}")
+
+@app.command("walkforward")
+def cli_walkforward(
+    symbols: str = typer.Option("", "--symbols", help="Comma symbols; blank=equities from settings"),
+    train: int = typer.Option(180, "--train"),
+    test: int = typer.Option(30, "--test"),
+    step: int = typer.Option(30, "--step"),
+):
+    from autoswing.config.loader import load_settings
+    ROOT = Path(__file__).parents[2]
+    st = load_settings(ROOT / "autoswing" / "config" / "settings_default.yaml")
+    syms = [s.strip().upper() for s in symbols.split(",") if s.strip()] or st.universe_equities
+    df = walkforward(syms, train_days=train, test_days=test, step_days=step, root=ROOT)
+    out = ROOT / "runtime/logs" / "walkforward_results.csv"
+    df.to_csv(out, index=False)
+    print(f"Saved walkforward results: {out} ({len(df)} rows)")
+
+@app.command("montecarlo")
+def cli_montecarlo(
+    source: str = typer.Option("trades", "--source", help="'trades' or path to csv w/return col"),
+    iters: int = typer.Option(10000, "--iters"),
+    start_equity: float = typer.Option(1000.0, "--start"),
+):
+    arr = load_trade_returns(source)
+    res = mc_paths(arr, iters=iters, start_equity=start_equity)
+    out = Path(__file__).parents[2] / "runtime/logs" / "montecarlo.json"
+    out.write_text(json.dumps(res, indent=2))
+    print(f"MonteCarlo done. median={res['median']:.2f} ruin_prob={res['ruin_prob']:.3f}")
+    print(f"wrote {out}")
+
+@app.command("ui")
+def cli_ui(
+    port: int = typer.Option(8501, "--port", help="Streamlit port"),
+    open_browser: bool = typer.Option(False, "--open-browser/--no-open-browser", help="Launch browser automatically."),
+):
+    ROOT = Path(__file__).parents[2]
+    script = ROOT / "autoswing" / "ui" / "app.py"
+    cmd = ["streamlit", "run", str(script), "--server.port", str(port)]
+    if not open_browser:
+        cmd += ["--server.headless", "true", "--browser.gatherUsageStats", "false"]
+    subprocess.call(cmd)
