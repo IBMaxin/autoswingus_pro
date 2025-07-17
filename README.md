@@ -29,3 +29,4 @@ We’ll create minimal importable modules so `pytest` and `python -c "import aut
 cat > autoswing/__init__.py <<'EOF'
 """AutoSwingUS-Pro package root."""
 __version__ = "0.0.1"
+# assistant patch smoke Thu Jul 17 08:20:39 AM PDT 2025
